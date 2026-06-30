@@ -1,0 +1,10 @@
+# Build artifacts
+.build/
+Dictat.app/
+
+# macOS
+.DS_Store
+
+# Xcode user-specific (in case anyone opens it in Xcode)
+xcuserdata/
+*.xcuserstate
