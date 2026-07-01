@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without leading v"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" == "main" ]] || {
+            echo "run releases from main" >&2
+            exit 2
+          }
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "version must look like 0.1.0" >&2
+            exit 2
+          }
+          git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null && {
+            echo "tag v$VERSION already exists" >&2
+            exit 2
+          } || true
+
+      - name: Build and package app
+        id: package
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/Dictat.app"
+          zip="$RUNNER_TEMP/Dictat.zip"
+          ./build.sh --output "$app" --version "$VERSION" --no-tcc-reset
+          ditto -c -k --keepParent --norsrc --noextattr "$app" "$zip"
+          sha256="$(shasum -a 256 "$zip" | awk '{print $1}')"
+          echo "zip=$zip" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Update cask
+        env:
+          VERSION: ${{ inputs.version }}
+          SHA256: ${{ steps.package.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          ruby -0pi -e 'gsub(/^  version ".*?"$/, "  version \"#{ENV.fetch("VERSION")}\""); gsub(/^  sha256 (?:".*?"|:no_check)$/, "  sha256 \"#{ENV.fetch("SHA256")}\"")' Casks/dictat.rb
+          git diff -- Casks/dictat.rb
+
+      - name: Commit, tag, and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          ZIP: ${{ steps.package.outputs.zip }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/dictat.rb
+          git commit -m "Release v$VERSION"
+          sha="$(git rev-parse HEAD)"
+          release_ref="refs/heads/release/v$VERSION"
+          git push origin "HEAD:$release_ref"
+          gh release create "v$VERSION" "$ZIP#Dictat.zip" --target "$sha" --title "v$VERSION" --notes "Prebuilt Dictat.app for Homebrew cask installs."
+          git push origin "HEAD:main"
+          git push origin ":$release_ref"
