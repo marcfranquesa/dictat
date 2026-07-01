@@ -8,13 +8,20 @@ brew trust --cask marcfranquesa/dictat/dictat
 brew install --cask marcfranquesa/dictat/dictat
 ```
 
+if macOS says `"Dictat" Not Opened` because Apple cannot verify it is free of malware, remove the download quarantine and open it again:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Dictat.app
+open /Applications/Dictat.app
+```
+
 uninstall with:
 
 ```sh
 brew uninstall --zap --cask marcfranquesa/dictat/dictat
 ```
 
-the v1 cask build is Apple Silicon only and ad-hoc signed, not notarized, so macOS may require Finder's Open action or System Settings > Privacy & Security on first launch. licensed Apache-2.0, with the Parakeet STT engine vendored from [FluidAudio](https://github.com/FluidInference/FluidAudio).
+the v1 cask build is Apple Silicon only and ad-hoc signed, not notarized, so Gatekeeper may block first launch. Developer ID signing and notarization are the proper fix; until then, use the quarantine command above. licensed Apache-2.0, with the Parakeet STT engine vendored from [FluidAudio](https://github.com/FluidInference/FluidAudio).
 
 the feature is no features.
 

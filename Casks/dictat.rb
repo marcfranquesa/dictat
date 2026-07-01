@@ -25,6 +25,7 @@ cask "dictat" do
     is needed to paste the transcription at the cursor.
 
     This build is ad-hoc signed, not notarized. If Gatekeeper blocks first
-    launch, use Finder's Open action or System Settings > Privacy & Security.
+    launch with '"Dictat" Not Opened', run:
+      xattr -dr com.apple.quarantine /Applications/Dictat.app
   EOS
 end
