@@ -1,6 +1,19 @@
 # dictat
 
-tiny, fully on-device macOS dictation. press Ctrl+Opt+Space, speak, then press again, and the text is pasted at your cursor and copied to the clipboard. build it with `./build.sh`. licensed Apache-2.0, with the Parakeet STT engine vendored from [FluidAudio](https://github.com/FluidInference/FluidAudio).
+tiny, fully on-device macOS dictation. press Ctrl+Opt+Space, speak, then press again, and the text is pasted at your cursor and copied to the clipboard. build it with `./build.sh`, or install the prebuilt app with Homebrew:
+
+```sh
+brew tap marcfranquesa/dictat https://github.com/marcfranquesa/dictat
+brew install --cask dictat
+```
+
+uninstall with:
+
+```sh
+brew uninstall --zap --cask dictat
+```
+
+the v1 cask build is Apple Silicon only and ad-hoc signed, not notarized, so macOS may require Finder's Open action or System Settings > Privacy & Security on first launch. licensed Apache-2.0, with the Parakeet STT engine vendored from [FluidAudio](https://github.com/FluidInference/FluidAudio).
 
 the feature is no features.
 
