@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build dictat from source and assemble a signed Dictat.app.
-# Everything runs locally; the only network use is SwiftPM fetching FluidAudio
-# and (on first launch of the app) the one-time Parakeet model download.
+# Everything runs locally; the only network use is the first-launch Parakeet
+# model download.
 
 # Ensure we're running under bash even if invoked as `sh build.sh` (the shebang
 # is ignored then), since this script uses bashisms like `set -o pipefail`.
@@ -17,18 +17,37 @@ cd "$(dirname "$0")"
 #         keep the grant across rebuilds (codesign needs a *trusted* cert for that, which we
 #         deliberately dropped), so --dev just makes the unavoidable re-grant painless.
 DEV=0
-for arg in "$@"; do
-    case "$arg" in
-        --dev) DEV=1 ;;
-        *) echo "unknown flag: $arg (supported: --dev)"; exit 2 ;;
+APP="/Applications/Dictat.app"
+VERSION="0.1.0"
+RESET_TCC=1
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --dev) DEV=1; shift ;;
+        --output)
+            [ "$#" -ge 2 ] || { echo "--output requires a path"; exit 2; }
+            APP="$2"
+            shift 2
+            ;;
+        --version)
+            [ "$#" -ge 2 ] || { echo "--version requires a semver value"; exit 2; }
+            VERSION="$2"
+            shift 2
+            ;;
+        --no-tcc-reset) RESET_TCC=0; shift ;;
+        *) echo "unknown flag: $1 (supported: --dev, --output <path>, --version <semver>, --no-tcc-reset)"; exit 2 ;;
     esac
 done
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "--version must look like 0.1.0"
+    exit 2
+fi
+if [[ "$APP" != *.app || "$APP" == "/" ]]; then
+    echo "--output must be an .app bundle path"
+    exit 2
+fi
 
 BIN_NAME="dictat"
 BUNDLE_ID="dev.local.dictat"
-# Install straight into /Applications so Raycast, Spotlight and Launchpad all index it.
-# (Single canonical copy — no stray duplicate left in the build folder.)
-APP="/Applications/Dictat.app"
 
 if [ "$DEV" -eq 1 ]; then
     CONFIG="debug"
@@ -42,6 +61,7 @@ BIN_PATH="$(swift build -c "$CONFIG" --show-bin-path)/${BIN_NAME}"
 
 echo "==> Assembling ${APP}"
 rm -rf "${APP}" ./Dictat.app   # drop any legacy copy left in the repo dir
+mkdir -p "$(dirname "${APP}")"
 mkdir -p "${APP}/Contents/MacOS"
 mkdir -p "${APP}/Contents/Resources"
 cp "${BIN_PATH}" "${APP}/Contents/MacOS/${BIN_NAME}"
@@ -58,13 +78,13 @@ cat > "${APP}/Contents/Info.plist" <<PLIST
 <dict>
     <key>CFBundleExecutable</key>          <string>${BIN_NAME}</string>
     <key>CFBundleIdentifier</key>          <string>${BUNDLE_ID}</string>
-    <key>CFBundleName</key>                <string>dictat</string>
-    <key>CFBundleDisplayName</key>         <string>dictat</string>
+    <key>CFBundleName</key>                <string>Dictat</string>
+    <key>CFBundleDisplayName</key>         <string>Dictat</string>
     <key>CFBundlePackageType</key>         <string>APPL</string>
     <key>CFBundleIconFile</key>            <string>AppIcon</string>
     <key>CFBundleIconName</key>            <string>AppIcon</string>
-    <key>CFBundleShortVersionString</key>  <string>0.1.0</string>
-    <key>CFBundleVersion</key>             <string>1</string>
+    <key>CFBundleShortVersionString</key>  <string>${VERSION}</string>
+    <key>CFBundleVersion</key>             <string>${VERSION}</string>
     <key>LSMinimumSystemVersion</key>      <string>14.0</string>
     <key>LSUIElement</key>                 <true/>
     <key>NSMicrophoneUsageDescription</key>
@@ -73,15 +93,14 @@ cat > "${APP}/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Ad-hoc code signing. The signature changes on every build, so macOS treats each rebuild
-# as a new app and the previous Accessibility grant becomes a stale entry that silently
-# shadows this binary (paste fails without error). So we reset the grant on every build —
-# you re-grant Accessibility once per rebuild. That's the cost of ad-hoc; the app is small
-# and finished, so in normal use you build once and the grant just stays.
+# Ad-hoc code signing. Local rebuilds reset Accessibility because macOS keys
+# that grant to the changing signature; release builds skip TCC mutation.
 echo "==> Ad-hoc code signing"
 codesign --force --deep --sign - "${APP}"
-echo "==> Clearing stale Accessibility grant for ${BUNDLE_ID} (re-grant after launch)"
-tccutil reset Accessibility "${BUNDLE_ID}" >/dev/null 2>&1 || true
+if [ "$RESET_TCC" -eq 1 ]; then
+    echo "==> Clearing stale Accessibility grant for ${BUNDLE_ID} (re-grant after launch)"
+    tccutil reset Accessibility "${BUNDLE_ID}" >/dev/null 2>&1 || true
+fi
 
 echo "==> Done: ${APP}"
 
@@ -91,10 +110,11 @@ if [ "$DEV" -eq 1 ]; then
     pkill -x "${BIN_NAME}" 2>/dev/null || true
     sleep 0.3
     open "${APP}"
-    # The ad-hoc signature just changed, so the grant was reset above. Pop the Accessibility
-    # pane so re-toggling Dictat takes a couple of seconds instead of a menu hunt.
-    open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility" 2>/dev/null || true
-    echo "    Re-grant: in the Accessibility pane, remove the old 'Dictat' (–) and toggle the new one on."
+    if [ "$RESET_TCC" -eq 1 ]; then
+        # Pop the Accessibility pane so re-toggling Dictat takes a couple of seconds.
+        open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility" 2>/dev/null || true
+        echo "    Re-grant: in the Accessibility pane, remove the old 'Dictat' (–) and toggle the new one on."
+    fi
 else
     echo "    Launch with:  open ${APP}"
     echo "    First launch downloads the Parakeet model (~500 MB) once, then it's fully offline."
