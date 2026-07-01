@@ -4,13 +4,14 @@ tiny, fully on-device macOS dictation. press Ctrl+Opt+Space, speak, then press a
 
 ```sh
 brew tap marcfranquesa/dictat https://github.com/marcfranquesa/dictat
-brew install --cask dictat
+brew trust --cask marcfranquesa/dictat/dictat
+brew install --cask marcfranquesa/dictat/dictat
 ```
 
 uninstall with:
 
 ```sh
-brew uninstall --zap --cask dictat
+brew uninstall --zap --cask marcfranquesa/dictat/dictat
 ```
 
 the v1 cask build is Apple Silicon only and ad-hoc signed, not notarized, so macOS may require Finder's Open action or System Settings > Privacy & Security on first launch. licensed Apache-2.0, with the Parakeet STT engine vendored from [FluidAudio](https://github.com/FluidInference/FluidAudio).
