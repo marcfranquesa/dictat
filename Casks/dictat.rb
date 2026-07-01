@@ -1,6 +1,6 @@
 cask "dictat" do
   version "0.1.0"
-  sha256 :no_check
+  sha256 "adf14c9f35c481e2f2b3033082cbb93eb67babeaca0772062dea2f0a15e06991"
 
   url "https://github.com/marcfranquesa/dictat/releases/download/v#{version}/Dictat.zip",
       verified: "github.com/marcfranquesa/dictat/"
